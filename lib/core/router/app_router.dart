@@ -8,6 +8,7 @@ import '../../View/Screens/On_Boarding/intro_screen.dart';
 import '../../View/Screens/On_Boarding/landing_login.dart';
 import '../../View/Screens/On_Boarding/splash_screen.dart';
 import '../../View/Screens/home/home_screen.dart';
+import '../../View/Screens/home/report_item_screen.dart';
 import '../../View/Screens/profile/profile_screen.dart';
 
 class AppRouter {
@@ -16,6 +17,7 @@ class AppRouter {
   static const String intro = '/intro';
   static const String landing = '/landing';
   static const String home = '/home';
+  static const String reportItem = '/report-item';
   static const String profile = '/profile';
 
   // Create a custom transition
@@ -66,6 +68,13 @@ class AppRouter {
         pageBuilder: (context, state) => buildTransition(
           key: state.pageKey,
           child: const HomeScreen(),
+        ),
+      ),
+      GoRoute(
+        path: reportItem,
+        pageBuilder: (context, state) => buildTransition(
+          key: state.pageKey,
+          child: const ReportItemScreen(),
         ),
       ),
       GoRoute(

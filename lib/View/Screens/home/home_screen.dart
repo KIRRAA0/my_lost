@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/Utils/app_colors.dart';
+import '../../../core/router/app_router.dart';
 import '../../../data/Models/lost_item_model.dart';
 import '../../../logic/cubits/home/home_cubit.dart';
 import '../../../logic/cubits/home/home_state.dart';
@@ -286,23 +288,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           child: FloatingActionButton.extended(
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.white, size: 20),
-                      const SizedBox(width: 8),
-                      const Text('Report Lost Item feature coming soon!'),
-                    ],
-                  ),
-                  backgroundColor: AppColors.lightPrimaryColor,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  margin: const EdgeInsets.all(16),
-                ),
-              );
+              context.push(AppRouter.reportItem);
             },
             backgroundColor: AppColors.lightPrimaryColor,
             elevation: 0,

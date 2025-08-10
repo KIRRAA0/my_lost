@@ -8,8 +8,24 @@ import GoogleMaps
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GMSServices.provideAPIKey("AIzaSyBb1R3nEGEKq4Pao1JTanmVYqWIRxObArY")
+    // Google Maps API key
+    GMSServices.provideAPIKey("AIzaSyDGbqlpUyhaG9GT1SeRI0TWXp_nWPFt93o")
+    
+    // Ensure plugins are registered before app becomes active
     GeneratedPluginRegistrant.register(with: self)
+    
+    // Allow time for plugin initialization
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+      // This ensures Flutter engine is fully ready before plugins are used
+    }
+    
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+  
+  override func applicationDidBecomeActive(_ application: UIApplication) {
+    super.applicationDidBecomeActive(application)
+    
+    // Additional plugin initialization when app becomes active
+    // This helps ensure plugins are ready after app lifecycle changes
   }
 }

@@ -50,5 +50,11 @@
 	<string>My Lost needs location access to show nearby lost items and help you find your location on the map.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>My Lost needs location access to show nearby lost items and help you find your location on the map.</string>
+	
+	<!-- Camera permissions for image capture -->
+	<key>NSCameraUsageDescription</key>
+	<string>My Lost needs camera access to capture photos of found items for reporting.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>My Lost needs photo library access to select images for reporting found items.</string>
 </dict>
 </plist>
