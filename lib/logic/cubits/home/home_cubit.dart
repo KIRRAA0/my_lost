@@ -1,12 +1,18 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/api/apiprovider.dart';
 import '../../../data/Models/lost_item_model.dart';
 import 'home_state.dart';
 
 class HomeCubit extends Cubit<HomeState> {
-  HomeCubit() : super(HomeInitial());
+  final ApiProvider _apiProvider;
+  
+  HomeCubit({ApiProvider? apiProvider}) 
+      : _apiProvider = apiProvider ?? ApiProvider(),
+        super(HomeInitial());
 
   static const List<String> categories = [
     'All',
@@ -26,24 +32,48 @@ class HomeCubit extends Cubit<HomeState> {
     emit(HomeLoading());
     
     try {
-      // Load mock data
-      final items = _generateMockItems();
-      final markers = _createMarkers(items, 'All', onMarkerTap: onMarkerTap);
+      debugPrint('HomeCubit: Loading lost items from API...');
       
-      emit(HomeLoaded(
-        allItems: items,
-        filteredItems: items,
-        markers: markers,
-        selectedCategory: 'All',
-        currentZoom: 12.0,
-        isSearchExpanded: false,
-        showMapControls: true,
-      ));
+      // Fetch items from API
+      final response = await _apiProvider.getLostItems(
+        limit: 100, // Get a reasonable number of items
+        skip: 0,
+      );
+      
+      debugPrint('HomeCubit: API response received with status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        // Handle both wrapped and direct array responses
+        final List<dynamic> itemsJson = response.data is List 
+            ? response.data 
+            : response.data['data'] ?? [];
+        debugPrint('HomeCubit: Parsing ${itemsJson.length} items from API response');
+        
+        // Convert API response to LostItem objects
+        final items = itemsJson.map((json) => LostItem.fromApiResponse(json)).toList();
+        final markers = _createMarkers(items, 'All', onMarkerTap: onMarkerTap);
+        
+        debugPrint('HomeCubit: Successfully loaded ${items.length} items');
+        
+        emit(HomeLoaded(
+          allItems: items,
+          filteredItems: items,
+          markers: markers,
+          selectedCategory: 'All',
+          currentZoom: 12.0,
+          isSearchExpanded: false,
+          showMapControls: true,
+        ));
 
-      // Get current location after initial load
-      _getCurrentLocation();
+        // Get current location after initial load
+        _getCurrentLocation();
+      } else {
+        debugPrint('HomeCubit: API error - Status: ${response.statusCode}');
+        throw Exception('Failed to load items: ${response.statusCode}');
+      }
     } catch (e) {
-      emit(HomeError(message: e.toString()));
+      debugPrint('HomeCubit: Error loading items: $e');
+      emit(HomeError(message: 'Failed to load lost items. Please check your internet connection and try again.'));
     }
   }
 
@@ -135,6 +165,87 @@ class HomeCubit extends Cubit<HomeState> {
     }
   }
 
+  /// Load nearby items based on current location
+  Future<void> loadNearbyItems({
+    required double latitude,
+    required double longitude,
+    double radius = 5.0,
+    Function(LostItem)? onMarkerTap,
+  }) async {
+    try {
+      debugPrint('HomeCubit: Loading nearby items at lat: $latitude, lng: $longitude, radius: $radius km');
+      
+      final response = await _apiProvider.getNearbyItems(
+        latitude: latitude,
+        longitude: longitude,
+        radius: radius,
+      );
+
+      if (response.statusCode == 200) {
+        // Handle both wrapped and direct array responses
+        final List<dynamic> itemsJson = response.data is List 
+            ? response.data 
+            : response.data['data'] ?? [];
+        debugPrint('HomeCubit: Found ${itemsJson.length} nearby items');
+        
+        final nearbyItems = itemsJson.map((json) => LostItem.fromApiResponse(json)).toList();
+        
+        if (state is HomeLoaded) {
+          final currentState = state as HomeLoaded;
+          
+          // Combine all items with nearby items (avoid duplicates)
+          final allItems = <LostItem>[...currentState.allItems];
+          for (final nearbyItem in nearbyItems) {
+            if (!allItems.any((item) => item.id == nearbyItem.id)) {
+              allItems.add(nearbyItem);
+            }
+          }
+          
+          final markers = _createMarkers(allItems, currentState.selectedCategory, onMarkerTap: onMarkerTap);
+          
+          emit(currentState.copyWith(
+            allItems: allItems,
+            filteredItems: currentState.selectedCategory == 'All' 
+                ? allItems 
+                : allItems.where((item) => item.category == currentState.selectedCategory).toList(),
+            markers: markers,
+          ));
+        }
+      }
+    } catch (e) {
+      debugPrint('HomeCubit: Error loading nearby items: $e');
+      // Don't emit error for nearby items - just log it
+    }
+  }
+
+  /// Get specific lost item by ID
+  Future<LostItem?> getLostItemById(String itemId) async {
+    try {
+      debugPrint('HomeCubit: Fetching item details for ID: $itemId');
+      
+      final response = await _apiProvider.getLostItemById(itemId);
+      
+      if (response.statusCode == 200) {
+        // Handle both wrapped and direct object responses
+        final itemJson = response.data is Map<String, dynamic>
+            ? response.data
+            : response.data['data'] ?? {};
+        return LostItem.fromApiResponse(itemJson);
+      } else {
+        debugPrint('HomeCubit: Failed to fetch item details - Status: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('HomeCubit: Error fetching item details: $e');
+      return null;
+    }
+  }
+
+  /// Refresh items data
+  Future<void> refreshItems({Function(LostItem)? onMarkerTap}) async {
+    loadInitialData(onMarkerTap: onMarkerTap);
+  }
+
   Set<Marker> _createMarkers(List<LostItem> items, String selectedCategory, {Function(LostItem)? onMarkerTap}) {
     final filteredItems = selectedCategory == 'All'
         ? items
@@ -183,83 +294,5 @@ class HomeCubit extends Cubit<HomeState> {
     }
   }
 
-  List<LostItem> _generateMockItems() {
-    return [
-      LostItem(
-        id: '1',
-        title: 'iPhone 14 Pro',
-        description: 'Space Black iPhone 14 Pro found near Central Park. Has a cracked screen protector.',
-        category: 'Electronics',
-        imageUrl: 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=300&h=200&fit=crop',
-        latitude: 40.7829,
-        longitude: -73.9654,
-        address: 'Central Park, New York, NY',
-        dateFound: DateTime.now().subtract(const Duration(days: 2)),
-        finderName: 'John Smith',
-        finderContact: '+1 234 567 8900',
-        status: ItemStatus.found,
-        tags: ['phone', 'apple', 'black'],
-      ),
-      LostItem(
-        id: '2',
-        title: 'Blue Backpack',
-        description: 'Nike blue backpack with laptop compartment. Found at coffee shop.',
-        category: 'Bags',
-        imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300&h=200&fit=crop',
-        latitude: 40.7614,
-        longitude: -73.9776,
-        address: 'Times Square, New York, NY',
-        dateFound: DateTime.now().subtract(const Duration(days: 1)),
-        finderName: 'Sarah Johnson',
-        finderContact: '+1 234 567 8901',
-        status: ItemStatus.found,
-        tags: ['backpack', 'nike', 'blue'],
-      ),
-      LostItem(
-        id: '3',
-        title: 'Car Keys',
-        description: 'Toyota car keys with house keys attached. Black keychain.',
-        category: 'Keys',
-        imageUrl: 'https://images.unsplash.com/photo-1582139329536-e7284fece509?w=300&h=200&fit=crop',
-        latitude: 40.7505,
-        longitude: -73.9934,
-        address: 'Brooklyn Bridge, New York, NY',
-        dateFound: DateTime.now().subtract(const Duration(hours: 6)),
-        finderName: 'Mike Wilson',
-        finderContact: '+1 234 567 8902',
-        status: ItemStatus.found,
-        tags: ['keys', 'toyota', 'keychain'],
-      ),
-      LostItem(
-        id: '4',
-        title: 'Gold Watch',
-        description: 'Rolex Submariner gold watch. Found in restaurant.',
-        category: 'Jewelry',
-        imageUrl: 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=300&h=200&fit=crop',
-        latitude: 40.7484,
-        longitude: -73.9857,
-        address: 'SoHo, New York, NY',
-        dateFound: DateTime.now().subtract(const Duration(days: 3)),
-        finderName: 'Emma Davis',
-        finderContact: '+1 234 567 8903',
-        status: ItemStatus.found,
-        tags: ['watch', 'rolex', 'gold'],
-      ),
-      LostItem(
-        id: '5',
-        title: 'Passport',
-        description: 'US Passport in brown leather wallet. Found in taxi.',
-        category: 'Documents',
-        imageUrl: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=300&h=200&fit=crop',
-        latitude: 40.7580,
-        longitude: -73.9855,
-        address: 'Columbus Circle, New York, NY',
-        dateFound: DateTime.now().subtract(const Duration(hours: 12)),
-        finderName: 'Alex Rodriguez',
-        finderContact: '+1 234 567 8904',
-        status: ItemStatus.found,
-        tags: ['passport', 'documents', 'wallet'],
-      ),
-    ];
-  }
+
 }

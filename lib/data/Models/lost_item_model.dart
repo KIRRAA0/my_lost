@@ -52,6 +52,75 @@ class LostItem extends Equatable {
     );
   }
 
+  // Factory method specifically for API responses
+  factory LostItem.fromApiResponse(Map<String, dynamic> json) {
+    // Extract title from description if it follows the pattern "Title - Description"
+    final fullDescription = json['description'] ?? '';
+    final parts = fullDescription.split(' - ');
+    final title = parts.length > 1 ? parts[0] : fullDescription.split(' ').take(3).join(' ');
+    final description = parts.length > 1 ? parts.sublist(1).join(' - ') : fullDescription;
+
+    // Extract finder info
+    final finderInfo = json['finder_info'] ?? {};
+    final finderName = finderInfo['name'] ?? 'Anonymous';
+    final finderContact = finderInfo['email'] ?? finderInfo['phone'] ?? '';
+
+    // Handle potential date field variations
+    final dateField = json['created_at'] ?? json['date_found'] ?? json['dateFound'];
+    DateTime parsedDate;
+    try {
+      parsedDate = DateTime.parse(dateField);
+    } catch (e) {
+      parsedDate = DateTime.now();
+    }
+
+    return LostItem(
+      id: json['_id'] ?? json['id'] ?? '',
+      title: title,
+      description: description,
+      category: json['category']?.toString().toLowerCase() ?? '',
+      imageUrl: json['image_url'] ?? json['imageUrl'] ?? 'https://via.placeholder.com/400x300?text=No+Image',
+      latitude: (json['latitude'] ?? 0.0).toDouble(),
+      longitude: (json['longitude'] ?? 0.0).toDouble(),
+      address: json['found_at_address'] ?? json['address'] ?? '',
+      dateFound: parsedDate,
+      finderName: finderName,
+      finderContact: finderContact,
+      status: ItemStatus.found, // Default status for found items
+      tags: _generateTagsFromItem(title, description, json['category']?.toString()),
+    );
+  }
+
+  // Helper method to generate tags from item data
+  static List<String> _generateTagsFromItem(String title, String description, String? category) {
+    final tags = <String>[];
+    
+    // Add category as tag
+    if (category != null && category.isNotEmpty) {
+      tags.add(category.toLowerCase());
+    }
+    
+    // Extract potential tags from title and description
+    final combinedText = '$title $description'.toLowerCase();
+    final commonBrandKeywords = ['apple', 'samsung', 'nike', 'adidas', 'sony', 'hp', 'dell', 'iphone', 'android'];
+    
+    for (final keyword in commonBrandKeywords) {
+      if (combinedText.contains(keyword)) {
+        tags.add(keyword);
+      }
+    }
+    
+    // Add color tags if mentioned
+    final colors = ['black', 'white', 'red', 'blue', 'green', 'yellow', 'pink', 'purple', 'gray', 'brown'];
+    for (final color in colors) {
+      if (combinedText.contains(color)) {
+        tags.add(color);
+      }
+    }
+    
+    return tags;
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
